@@ -1,0 +1,5 @@
+.{
+    .name = "termui",
+    .paths = .{""},
+    .version = "0.1.0",
+}
