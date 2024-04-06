@@ -21,7 +21,32 @@ pub fn main() !void {
     );
 
     // try inputExample(&tui);
-    try selectorExample(&tui);
+    // try selectorExample(&tui);
+    try rowWriterExample(&tui);
+}
+
+fn rowWriterExample(tui: *termui.TermUI) !void {
+    var rows = try tui.rowDisplay(10);
+    try rows.clear();
+
+    try rows.writeToRowC(4, "4 Hello World");
+    try rows.writeToRowC(2, "2 Hello World");
+    try rows.writeToRowC(0, "0 Hello World");
+    try rows.writeToRowC(9, "9 Hello World");
+    try rows.moveToEnd();
+
+    try rows.draw();
+    _ = try tui.nextInput();
+    try rows.clear();
+
+    try rows.writeToRowC(0, "0 Goobye World");
+    try rows.writeToRowC(1, "1 Goobye World");
+    try rows.writeToRowC(8, "8 Goobye World");
+    try rows.moveToEnd();
+    try rows.draw();
+
+    _ = try tui.nextInput();
+    try tui.writer().writeByte('\n');
 }
 
 fn inputExample(tui: *termui.TermUI) !void {

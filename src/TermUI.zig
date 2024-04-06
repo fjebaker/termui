@@ -254,33 +254,101 @@ pub fn deinit(tui: *TermUI) void {
 /// Abstraction for displaying content in rows.
 /// Row zero corresponds to the highest row on terminal screen.
 pub const RowDisplay = struct {
-    tui: *TermUI,
+    ctrl: BufferedController,
     max_rows: usize,
     current_row: usize = 0,
 
     /// Clear the entire row display of any content.
-    // pub fn clear(d: *RowDisplay) !void {
-    //     var bw = d.tui.bufferedWriter().writer()
-    //     const w = bw.writer;
+    pub fn clear(d: *RowDisplay) !void {
+        const w = d.ctrl.writer();
+        try d.moveToRow(0);
+        for (0..d.max_rows - 1) |_| {
+            try d.ctrl.clearCurrentLine();
+            try w.writeByte('\n');
+        }
+        try d.ctrl.clearCurrentLine();
+        d.current_row = d.max_rows - 1;
+        try d.draw();
+    }
 
-    //     d.tui.cursorUp(d.current_row);
-    //     const w = d.tui.writer();
-    //     for (0..d.max_rows) |_| {
-    //         d.tui.clearCurrentLine();
-    //         try w.writeByte('\n');
-    //     }
-    //     d.current_row = d.max_rows - 1;
+    pub fn draw(d: *RowDisplay) !void {
+        try d.ctrl.flush();
+    }
 
-    //     try bw.flush();
-    // }
+    /// Move the cursor to a specific row
+    pub fn moveToRow(d: *RowDisplay, row: usize) !void {
+        if (row > d.current_row) {
+            // move cursor down
+            try d.ctrl.cursorDown(row - d.current_row);
+            d.current_row = row;
+        } else if (row < d.current_row) {
+            // move cursor up
+            try d.ctrl.cursorUp(d.current_row - row);
+            d.current_row = row;
+        }
+    }
 
-    pub fn rowWriter(d: *RowDisplay, row: usize) !Writer {
-        if (row > d.current_row) {}
+    /// Move the cursor to the last row
+    pub fn moveToEnd(d: *RowDisplay) !void {
+        try d.moveToRow(d.max_rows - 1);
+    }
+
+    fn clearCurrentRow(d: *RowDisplay) !void {
+        try d.ctrl.clearCurrentLine();
+    }
+
+    /// Write a string to a specific row
+    pub fn writeToRow(
+        d: *RowDisplay,
+        row: usize,
+        text: []const u8,
+    ) !void {
+        const w = try d.rowWriter(row);
+        try w.writeAll(text);
+    }
+
+    /// Write a string to the current row, clearing existing content first
+    pub fn writeToRowC(
+        d: *RowDisplay,
+        row: usize,
+        text: []const u8,
+    ) !void {
+        const w = try d.rowWriter(row);
+        try d.clearCurrentRow();
+        try w.writeAll(text);
+    }
+
+    /// Print to the current row, clearing existing content first
+    pub fn printToRow(
+        d: *RowDisplay,
+        row: usize,
+        comptime fmt: []const u8,
+        args: anytype,
+    ) !void {
+        const w = try d.rowWriter(row);
+        try w.print(fmt, args);
+    }
+
+    /// Print to the current row, clearing existing content first
+    pub fn printToRowC(
+        d: *RowDisplay,
+        row: usize,
+        comptime fmt: []const u8,
+        args: anytype,
+    ) !void {
+        const w = try d.rowWriter(row);
+        try d.clearCurrentRow();
+        try w.print(fmt, args);
+    }
+
+    pub fn rowWriter(d: *RowDisplay, row: usize) !BufferedWriter.Writer {
+        try d.moveToRow(row);
+        return d.ctrl.writer();
     }
 };
 
 /// Return a `RowDisplay` wrapper for reserving a fixed number of lines of the
 /// screen and drawing text into it.
-pub fn rowDisplay(tui: *TermUI, rows: usize) RowDisplay {
-    return .{ .tui = tui, .max_rows = rows };
+pub fn rowDisplay(tui: *TermUI, rows: usize) !RowDisplay {
+    return .{ .ctrl = tui.bufferedController(), .max_rows = rows };
 }
