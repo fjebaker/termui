@@ -306,6 +306,7 @@ pub const RowDisplay = struct {
         text: []const u8,
     ) !void {
         const w = try d.rowWriter(row);
+        try d.ctrl.cursorToColumn(0);
         try w.writeAll(text);
     }
 
@@ -320,7 +321,7 @@ pub const RowDisplay = struct {
         try w.writeAll(text);
     }
 
-    /// Print to the current row, clearing existing content first
+    /// Print to the current row
     pub fn printToRow(
         d: *RowDisplay,
         row: usize,
@@ -328,6 +329,7 @@ pub const RowDisplay = struct {
         args: anytype,
     ) !void {
         const w = try d.rowWriter(row);
+        try d.ctrl.cursorToColumn(0);
         try w.print(fmt, args);
     }
 
