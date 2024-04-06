@@ -259,7 +259,7 @@ pub const RowDisplay = struct {
     current_row: usize = 0,
 
     /// Clear the entire row display of any content.
-    pub fn clear(d: *RowDisplay) !void {
+    pub fn clear(d: *RowDisplay, flush: bool) !void {
         const w = d.ctrl.writer();
         try d.moveToRow(0);
         for (0..d.max_rows - 1) |_| {
@@ -268,7 +268,9 @@ pub const RowDisplay = struct {
         }
         try d.ctrl.clearCurrentLine();
         d.current_row = d.max_rows - 1;
-        try d.draw();
+        if (flush) {
+            try d.draw();
+        }
     }
 
     pub fn draw(d: *RowDisplay) !void {

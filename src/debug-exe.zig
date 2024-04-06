@@ -27,7 +27,7 @@ pub fn main() !void {
 
 fn rowWriterExample(tui: *termui.TermUI) !void {
     var rows = try tui.rowDisplay(10);
-    try rows.clear();
+    try rows.clear(true);
 
     try rows.writeToRowC(4, "4 Hello World");
     try rows.writeToRowC(2, "2 Hello World");
@@ -37,7 +37,7 @@ fn rowWriterExample(tui: *termui.TermUI) !void {
 
     try rows.draw();
     _ = try tui.nextInput();
-    try rows.clear();
+    try rows.clear(true);
 
     try rows.writeToRowC(0, "0 Goobye World");
     try rows.writeToRowC(1, "1 Goobye World");
