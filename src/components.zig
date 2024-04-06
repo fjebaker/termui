@@ -5,6 +5,10 @@ pub const Selector = struct {
     pub const Options = struct {
         /// Clear after drawing
         clear: bool = true,
+        /// Enable vim keybindings for navigation
+        vim: bool = true,
+        /// Surround selection prompt with newlines
+        newlines: bool = false,
     };
 
     tui: *TermUI,
@@ -26,20 +30,25 @@ pub const Selector = struct {
         var writer = s.tui.writer();
 
         // setup the screen
-        try writer.writeAll("\n");
+        if (s.opts.newlines) {
+            try writer.writeAll("\n");
+        }
         try s.redraw();
 
         // interaction loop
         while (try s.update()) {
-            try s.tui.cursorUp(s.choices.len);
+            try s.tui.cursorUp(s.choices.len - 1);
             try s.redraw();
         }
 
         if (s.opts.clear) {
-            try s.tui.cursorUp(s.choices.len + 2);
+            const num = if (s.opts.newlines) s.choices.len + 1 else s.choices.len;
+            try s.tui.cursorUp(num);
         }
 
+        // restore the terminal look and feel
         try writer.writeAll("\n");
+        try s.tui.clearCurrentLine();
         try s.tui.setCursorVisible(true);
 
         return s.choices.len - 1 - s.selection;
@@ -57,7 +66,10 @@ pub const Selector = struct {
                 try writer.writeAll("   ");
             }
             try writer.writeAll(choice);
-            try writer.writeAll("\n");
+
+            if (s.choices.len - 1 != index) {
+                try writer.writeAll("\n");
+            }
         }
     }
 
@@ -77,6 +89,8 @@ pub const Selector = struct {
         switch (try s.tui.nextInput()) {
             .char => |c| switch (c) {
                 'q' => return false,
+                'j' => if (s.opts.vim) s.incrementSelection(),
+                'k' => if (s.opts.vim) s.decrementSelection(),
                 else => {},
             },
             .Down => s.incrementSelection(),

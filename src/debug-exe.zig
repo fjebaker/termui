@@ -4,7 +4,7 @@ const termui = @import("termui");
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    var alloc = gpa.allocator();
+    const alloc = gpa.allocator();
 
     var tui = try termui.TermUI.init(
         alloc,

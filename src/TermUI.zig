@@ -1,8 +1,12 @@
 const std = @import("std");
 
+const TermInfo = std.os.linux.termios;
+const tcgetattr = std.os.linux.tcgetattr;
+const tcsetattr = std.os.linux.tcsetattr;
+
 const TermUI = @This();
 
-const TermInfo = std.os.termios;
+pub const Error = error{ SetAttrError, GetAttrError };
 
 const ESCAPE = 27; // escape code
 const ARROW_UP = 'A';
@@ -40,11 +44,13 @@ pub const Input = union(enum) {
 
 pub const TtyFd = struct {
     file: std.fs.File,
-    original: std.os.termios,
-    current: std.os.termios,
+    original: TermInfo,
+    current: TermInfo,
 
-    fn setTerm(handle: std.fs.File.Handle, term: std.os.termios) !void {
-        try std.os.tcsetattr(handle, .FLUSH, term);
+    fn setTerm(handle: std.fs.File.Handle, term: TermInfo) !void {
+        if (0 != tcsetattr(handle, .FLUSH, &term)) {
+            return Error.SetAttrError;
+        }
     }
 
     pub fn deinit(tf: *TtyFd) void {
@@ -53,22 +59,21 @@ pub const TtyFd = struct {
     }
 
     pub fn init(file: std.fs.File) !TtyFd {
-        const original = try std.os.tcgetattr(file.handle);
+        var original: TermInfo = undefined;
+        if (0 != tcgetattr(file.handle, &original)) {
+            return Error.GetAttrError;
+        }
         var current = original;
 
-        current.lflag &= ~@as(
-            u32,
-            // local: no echo, canonical mode, remove signals
-            std.os.linux.ECHO | std.os.linux.ICANON | std.os.linux.ISIG,
-        );
-        current.iflag &= ~@as(
-            u32,
-            // input: translate carriage return to newline
-            std.os.linux.ICRNL,
-        );
+        // local: no echo, canonical mode, remove signals
+        current.lflag.ECHO = false;
+        current.lflag.ICANON = false;
+        current.lflag.ISIG = false;
+        // input: translate carriage return to newline
+        current.iflag.ICRNL = false;
 
         // return read after each byte is sent
-        current.cc[std.os.linux.V.MIN] = 1;
+        current.cc[@intFromEnum(std.os.linux.V.MIN)] = 1;
         try setTerm(file.handle, current);
 
         return .{ .file = file, .original = original, .current = current };

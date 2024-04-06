@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // install a module for use in downstream libraries
-    const termui_module = b.createModule(.{ .source_file = .{ .path = "src/main.zig" } });
+    const termui_module = b.createModule(.{ .root_source_file = .{ .path = "src/main.zig" } });
 
     if (build_debug) {
         const debug_exe = b.addExecutable(.{
@@ -32,7 +32,8 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        debug_exe.addModule("termui", termui_module);
+        debug_exe.root_module.addImport("termui", termui_module);
+        // debug_exe.linkLibC();
         b.installArtifact(debug_exe);
     }
 
