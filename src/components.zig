@@ -39,15 +39,8 @@ pub const Selector = struct {
     selection: usize = 0,
     opts: Options,
 
-    pub fn init(
-        tui: *TermUI,
-        choices: []const []const u8,
-        opts: Options,
-    ) Selector {
-        return .{ .tui = tui, .choices = choices, .opts = opts };
-    }
-
-    pub fn interact(s: *Selector) !usize {
+    pub fn interact(tui: *TermUI, choices: []const []const u8, opts: Options) !usize {
+        var s = Selector{ .tui = tui, .choices = choices, .opts = opts };
         try s.tui.setCursorVisible(false);
 
         var writer = s.tui.writer();
@@ -111,7 +104,7 @@ pub const Selector = struct {
     pub fn update(s: *Selector) !bool {
         switch (try s.tui.nextInput()) {
             .char => |c| switch (c) {
-                'q' => return false,
+                Key.CtrlC, Key.CtrlD, 'q' => return false,
                 'j' => if (s.opts.vim) s.incrementSelection(),
                 'k' => if (s.opts.vim) s.decrementSelection(),
                 else => {},

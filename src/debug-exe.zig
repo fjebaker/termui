@@ -22,17 +22,26 @@ pub fn main() !void {
         .{ size.ws_col, size.ws_row },
     );
 
+    try inputExample(&tui);
+}
+
+fn inputExample(tui: *termui.TermUI) !void {
+    try termui.ShowInput.interact(tui);
+}
+
+fn selectorExample(tui: *termui.TermUI) !void {
+    var writer = tui.writer();
+
     const options = [_][]const u8{
         "Hello",
         "World",
         "These are the options",
     };
 
-    var selector = termui.components.Selector.init(
+    const choice = try termui.Selector.interact(
         &tui,
         &options,
-        .{ .clear = true },
+        .{ .clear = false },
     );
-    const choice = try selector.interact();
-    try tui.writer().print("You selected: {s}\n", .{options[choice]});
+    try writer.print("You selected: {s}\n", .{options[choice]});
 }
