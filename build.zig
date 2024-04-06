@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // install a module for use in downstream libraries
-    const termui_module = b.createModule(.{ .root_source_file = .{ .path = "src/main.zig" } });
+    const termui_module = b.addModule("termui", .{ .root_source_file = .{ .path = "src/main.zig" } });
 
     if (build_debug) {
         const debug_exe = b.addExecutable(.{
