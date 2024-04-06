@@ -8,6 +8,15 @@ const TermUI = @This();
 
 pub const Error = error{ SetAttrError, GetAttrError };
 
+pub const Key = struct {
+    pub const Tab = 9;
+    pub const CtrlC = 3;
+    pub const CtrlD = 4;
+    pub const Enter = 13;
+    pub const Space = 32;
+    pub const Backspace = 127;
+};
+
 const ESCAPE = 27; // escape code
 const ARROW_UP = 'A';
 const ARROW_DOWN = 'B';
