@@ -4,10 +4,8 @@ const termui = @import("termui");
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    const alloc = gpa.allocator();
 
     var tui = try termui.TermUI.init(
-        alloc,
         std.io.getStdIn(),
         std.io.getStdOut(),
     );
@@ -22,7 +20,8 @@ pub fn main() !void {
         .{ size.ws_col, size.ws_row },
     );
 
-    try inputExample(&tui);
+    // try inputExample(&tui);
+    try selectorExample(&tui);
 }
 
 fn inputExample(tui: *termui.TermUI) !void {
@@ -39,9 +38,9 @@ fn selectorExample(tui: *termui.TermUI) !void {
     };
 
     const choice = try termui.Selector.interact(
-        &tui,
+        tui,
         &options,
         .{ .clear = false },
     );
-    try writer.print("You selected: {s}\n", .{options[choice]});
+    try writer.print("\nYou selected: {s}\n", .{options[choice]});
 }

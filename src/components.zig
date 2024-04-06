@@ -4,23 +4,24 @@ const Key = TermUI.Key;
 
 pub const ShowInput = struct {
     pub fn interact(tui: *TermUI) !void {
-        const writer = tui.writer();
-        try writer.writeAll("Input:");
+        const ctrl = tui.controller();
 
-        try tui.setCursorVisible(false);
+        try ctrl.writer().writeAll("Input:");
+
+        try ctrl.setCursorVisible(false);
 
         while (true) {
             const inp = try tui.nextInputByte();
             switch (inp) {
                 Key.CtrlC, Key.CtrlD, 'q' => break,
                 else => {
-                    try writer.print(" {d}", .{inp});
+                    try ctrl.writer().print(" {d}", .{inp});
                 },
             }
         }
 
-        try writer.writeAll("\n");
-        try tui.setCursorVisible(true);
+        try ctrl.writer().writeAll("\n");
+        try ctrl.setCursorVisible(true);
     }
 };
 
@@ -34,16 +35,16 @@ pub const Selector = struct {
         newlines: bool = false,
     };
 
-    tui: *TermUI,
+    ctrl: TermUI.BufferedController,
     choices: []const []const u8,
     selection: usize = 0,
     opts: Options,
 
     pub fn interact(tui: *TermUI, choices: []const []const u8, opts: Options) !usize {
-        var s = Selector{ .tui = tui, .choices = choices, .opts = opts };
-        try s.tui.setCursorVisible(false);
+        var s = Selector{ .ctrl = tui.bufferedController(), .choices = choices, .opts = opts };
+        try s.ctrl.setCursorVisible(false);
 
-        var writer = s.tui.writer();
+        var writer = s.ctrl.writer();
 
         // setup the screen
         if (s.opts.newlines) {
@@ -53,29 +54,31 @@ pub const Selector = struct {
 
         // interaction loop
         while (try s.update()) {
-            try s.tui.cursorUp(s.choices.len - 1);
+            try s.ctrl.cursorUp(s.choices.len - 1);
             try s.redraw();
         }
 
         if (s.opts.clear) {
             const num = if (s.opts.newlines) s.choices.len + 1 else s.choices.len;
-            try s.tui.cursorUp(num);
+            try s.ctrl.cursorUp(num);
         }
 
         // restore the terminal look and feel
         try writer.writeAll("\n");
-        try s.tui.clearCurrentLine();
-        try s.tui.setCursorVisible(true);
+        try s.ctrl.clearCurrentLine();
+        try s.ctrl.setCursorVisible(true);
+
+        try s.ctrl.flush();
 
         return s.choices.len - 1 - s.selection;
     }
 
     fn redraw(s: *Selector) !void {
-        var writer = s.tui.writer();
+        var writer = s.ctrl.writer();
 
         for (0..s.choices.len) |index| {
             const choice = s.choices[s.choices.len - 1 - index];
-            try s.tui.clearCurrentLine();
+            try s.ctrl.clearCurrentLine();
             if (index == s.selection) {
                 try writer.writeAll(" > ");
             } else {
@@ -87,6 +90,8 @@ pub const Selector = struct {
                 try writer.writeAll("\n");
             }
         }
+
+        try s.ctrl.flush();
     }
 
     fn incrementSelection(s: *Selector) void {
@@ -102,7 +107,7 @@ pub const Selector = struct {
     }
 
     pub fn update(s: *Selector) !bool {
-        switch (try s.tui.nextInput()) {
+        switch (try s.ctrl.tui.nextInput()) {
             .char => |c| switch (c) {
                 Key.CtrlC, Key.CtrlD, 'q' => return false,
                 'j' => if (s.opts.vim) s.incrementSelection(),
