@@ -1,5 +1,28 @@
 const std = @import("std");
 const TermUI = @import("TermUI.zig");
+const Key = TermUI.Key;
+
+pub const ShowInput = struct {
+    pub fn interact(tui: *TermUI) !void {
+        const writer = tui.writer();
+        try writer.writeAll("Input:");
+
+        try tui.setCursorVisible(false);
+
+        while (true) {
+            const inp = try tui.nextInputByte();
+            switch (inp) {
+                Key.CtrlC, Key.CtrlD, 'q' => break,
+                else => {
+                    try writer.print(" {d}", .{inp});
+                },
+            }
+        }
+
+        try writer.writeAll("\n");
+        try tui.setCursorVisible(true);
+    }
+};
 
 pub const Selector = struct {
     pub const Options = struct {

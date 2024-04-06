@@ -116,6 +116,12 @@ pub fn reader(tui: *TermUI) std.fs.File.Reader {
     return tui.in.file.reader();
 }
 
+/// Blocks until next input is read. Returns the raw byte read.
+pub fn nextInputByte(tui: *TermUI) !u8 {
+    const rdr = tui.reader();
+    return try rdr.readByte();
+}
+
 /// Blocks until next input is read. Translates escaped keycodes.
 pub fn nextInput(tui: *TermUI) !Input {
     const rdr = tui.reader();
