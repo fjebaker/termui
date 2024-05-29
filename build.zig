@@ -23,12 +23,15 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // install a module for use in downstream libraries
-    const termui_module = b.addModule("termui", .{ .root_source_file = .{ .path = "src/main.zig" } });
+    const termui_module = b.addModule(
+        "termui",
+        .{ .root_source_file = b.path("src/main.zig") },
+    );
 
     if (build_debug) {
         const debug_exe = b.addExecutable(.{
             .name = "debug-termui",
-            .root_source_file = .{ .path = "src/debug-exe.zig" },
+            .root_source_file = b.path("src/debug-exe.zig"),
             .target = target,
             .optimize = optimize,
         });
@@ -40,7 +43,7 @@ pub fn build(b: *std.Build) void {
     if (build_shared) {
         const lib = b.addSharedLibrary(.{
             .name = "termui",
-            .root_source_file = .{ .path = "src/debug-exe.zig" },
+            .root_source_file = b.path("src/debug-exe.zig"),
             .target = target,
             .optimize = optimize,
         });
@@ -50,7 +53,7 @@ pub fn build(b: *std.Build) void {
     if (build_static) {
         const lib = b.addStaticLibrary(.{
             .name = "termui",
-            .root_source_file = .{ .path = "src/debug-exe.zig" },
+            .root_source_file = b.path("src/debug-exe.zig"),
             .target = target,
             .optimize = optimize,
         });
@@ -58,7 +61,7 @@ pub fn build(b: *std.Build) void {
     }
 
     const main_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
