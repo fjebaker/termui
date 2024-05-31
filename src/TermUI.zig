@@ -18,6 +18,7 @@ pub const Key = struct {
     pub const CtrlL = 12;
     pub const CtrlN = 14;
     pub const Enter = 13;
+    pub const CtrlU = 21;
     pub const Escape = 27;
     pub const Space = 32;
     pub const Backspace = 127;
