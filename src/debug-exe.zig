@@ -21,8 +21,8 @@ pub fn main() !void {
     );
 
     // try inputExample(&tui);
-    // try selectorExample(&tui);
-    try rowWriterExample(&tui);
+    try selectorExample(&tui);
+    // try rowWriterExample(&tui);
 }
 
 fn rowWriterExample(tui: *termui.TermUI) !void {
@@ -66,6 +66,6 @@ fn selectorExample(tui: *termui.TermUI) !void {
         tui,
         &options,
         .{ .clear = false },
-    );
+    ) orelse return;
     try writer.print("\nYou selected: {s}\n", .{options[choice]});
 }

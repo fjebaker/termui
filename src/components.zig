@@ -38,9 +38,10 @@ pub const Selector = struct {
     ctrl: TermUI.BufferedController,
     choices: []const []const u8,
     selection: usize = 0,
+    selected: bool = false,
     opts: Options,
 
-    pub fn interact(tui: *TermUI, choices: []const []const u8, opts: Options) !usize {
+    pub fn interact(tui: *TermUI, choices: []const []const u8, opts: Options) !?usize {
         var s = Selector{ .ctrl = tui.bufferedController(), .choices = choices, .opts = opts };
         try s.ctrl.setCursorVisible(false);
 
@@ -70,7 +71,11 @@ pub const Selector = struct {
 
         try s.ctrl.flush();
 
-        return s.choices.len - 1 - s.selection;
+        if (s.selected) {
+            return s.choices.len - 1 - s.selection;
+        } else {
+            return null;
+        }
     }
 
     fn redraw(s: *Selector) !void {
@@ -112,6 +117,10 @@ pub const Selector = struct {
                 Key.CtrlC, Key.CtrlD, 'q' => return false,
                 'j' => if (s.opts.vim) s.incrementSelection(),
                 'k' => if (s.opts.vim) s.decrementSelection(),
+                Key.Enter => {
+                    s.selected = true;
+                    return false;
+                },
                 else => {},
             },
             .Down => s.incrementSelection(),
