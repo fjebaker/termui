@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const TermInfo = std.os.linux.termios;
-const tcgetattr = std.os.linux.tcgetattr;
-const tcsetattr = std.os.linux.tcsetattr;
+const TermInfo = std.posix.termios;
+const tcgetattr = std.posix.tcgetattr;
+const tcsetattr = std.posix.tcsetattr;
 
 const TermUI = @This();
 
@@ -113,9 +113,7 @@ pub const TtyFd = struct {
     current: TermInfo,
 
     fn setTerm(handle: std.fs.File.Handle, term: TermInfo) !void {
-        if (0 != tcsetattr(handle, .FLUSH, &term)) {
-            return Error.SetAttrError;
-        }
+        try tcsetattr(handle, .FLUSH, term);
     }
 
     pub fn deinit(tf: *TtyFd) void {
@@ -124,10 +122,7 @@ pub const TtyFd = struct {
     }
 
     pub fn init(file: std.fs.File) !TtyFd {
-        var original: TermInfo = undefined;
-        if (0 != tcgetattr(file.handle, &original)) {
-            return Error.GetAttrError;
-        }
+        const original = try tcgetattr(file.handle);
         // original.lflag.ISIG = true;
         var current = original;
 
@@ -139,17 +134,17 @@ pub const TtyFd = struct {
         current.iflag.ICRNL = false;
 
         // return read after each byte is sent
-        current.cc[@intFromEnum(std.os.linux.V.MIN)] = 1;
+        current.cc[@intFromEnum(std.posix.V.MIN)] = 1;
         try setTerm(file.handle, current);
 
         return .{ .file = file, .original = original, .current = current };
     }
 
-    pub fn getSize(tf: *const TtyFd) !std.os.linux.winsize {
-        var size: std.os.linux.winsize = undefined;
+    pub fn getSize(tf: *const TtyFd) !std.posix.winsize {
+        var size: std.posix.winsize = undefined;
         const ret_code = std.os.linux.ioctl(
             tf.file.handle,
-            std.os.linux.T.IOCGWINSZ,
+            std.posix.T.IOCGWINSZ,
             @intFromPtr(&size),
         );
         if (ret_code == -1) return TerminalError.IOCTLError;
@@ -234,7 +229,7 @@ pub fn nextInput(tui: TermUI) !Input {
 }
 
 /// Get terminal size
-pub fn getSize(tui: *TermUI) !std.os.linux.winsize {
+pub fn getSize(tui: *TermUI) !std.posix.winsize {
     return try tui.out.getSize();
 }
 

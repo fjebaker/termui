@@ -17,11 +17,11 @@ pub fn main() !void {
     var writer = tui.writer();
     try writer.print(
         "Terminal size: {d} x {d}\n",
-        .{ size.ws_col, size.ws_row },
+        .{ size.col, size.row },
     );
 
-    // try inputExample(&tui);
-    try selectorExample(&tui);
+    try inputExample(&tui);
+    // try selectorExample(&tui);
     // try rowWriterExample(&tui);
 }
 
