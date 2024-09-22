@@ -71,7 +71,10 @@ pub const Selector = struct {
 
         if (s.opts.clear) {
             const num = if (s.opts.newlines) s.num_choices + 1 else s.num_choices;
-            try s.ctrl.cursorUp(num);
+            for (0..num) |_| {
+                try s.ctrl.clearCurrentLine();
+                try s.ctrl.cursorUp(1);
+            }
         }
 
         // restore the terminal look and feel
