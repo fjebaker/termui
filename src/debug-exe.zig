@@ -20,7 +20,7 @@ pub fn main() !void {
         .{ size.col, size.row },
     );
 
-    try inputExample(&tui);
+    // try inputExample(&tui);
     try selectorExample(&tui);
     // try rowWriterExample(&tui);
 }
@@ -57,15 +57,24 @@ fn selectorExample(tui: *termui.TermUI) !void {
     var writer = tui.writer();
 
     const options = [_][]const u8{
-        "Hello",
-        "World",
-        "These are the options",
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
     };
 
     const choice = try termui.Selector.interact(
         tui,
         &options,
-        .{ .clear = false },
+        .{ .clear = false, .max_rows = 5, .reverse = false },
     ) orelse return;
     try writer.print("\nYou selected: {s}\n", .{options[choice]});
 }

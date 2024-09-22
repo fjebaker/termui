@@ -37,12 +37,21 @@ pub const Selector = struct {
         vim: bool = true,
         /// Surround selection prompt with newlines
         newlines: bool = false,
+        /// Maximum number of selections to draw
+        max_rows: usize = 10,
+        /// Reverse the display of the selection (if true shows from bottom)
+        reverse: bool = true,
     };
 
-    ctrl: TermUI.BufferedController,
+    display: TermUI.RowDisplay,
     num_choices: usize,
+    /// Index currently selected
     selection: usize = 0,
+    /// User has made a selection
     selected: bool = false,
+
+    // used to control overflowing the display
+    scroll_offset: usize = 0,
     opts: Options,
 
     pub fn interactFmt(
@@ -52,10 +61,19 @@ pub const Selector = struct {
         num_choices: usize,
         opts: Options,
     ) !?usize {
-        var s = Selector{ .ctrl = tui.bufferedController(), .num_choices = num_choices, .opts = opts };
-        try s.ctrl.setCursorVisible(false);
+        var s = Selector{
+            .display = try tui.rowDisplay(opts.max_rows),
+            .num_choices = num_choices,
+            .opts = opts,
+        };
+        try s.display.ctrl.setCursorVisible(false);
 
-        var writer = s.ctrl.writer();
+        if (s.opts.reverse) {
+            s.selection = s.num_choices - 1;
+            s.scroll_offset = (s.num_choices - s.opts.max_rows);
+        }
+
+        var writer = s.display.ctrl.writer();
 
         // setup the screen
         if (s.opts.newlines) {
@@ -65,32 +83,33 @@ pub const Selector = struct {
 
         // interaction loop
         while (try s.update()) {
-            try s.ctrl.cursorUp(s.num_choices - 1);
             try s.redraw(ctx, fmt);
         }
 
         if (s.opts.clear) {
-            const num = if (s.opts.newlines) s.num_choices + 1 else s.num_choices;
-            for (0..num) |_| {
-                try s.ctrl.clearCurrentLine();
-                try s.ctrl.cursorUp(1);
-            }
+            try s.cleanup();
         }
 
         // restore the terminal look and feel
         try writer.writeAll("\n");
-        try s.ctrl.clearCurrentLine();
-        try s.ctrl.setCursorVisible(true);
+        try s.display.ctrl.clearCurrentLine();
+        try s.display.ctrl.setCursorVisible(true);
 
-        try s.ctrl.flush();
+        try s.display.ctrl.flush();
 
         if (s.selected) {
-            return s.num_choices - 1 - s.selection;
+            return if (s.opts.reverse)
+                s.num_choices - (s.selection + 1)
+            else
+                s.selection;
         } else {
             return null;
         }
     }
 
+    /// Given a list of choices, display them to the user and return the choice
+    /// that they selected, or null otherwise. For more fine control over how
+    /// the selector is displayed, use `interactFmt`.
     pub fn interact(tui: *TermUI, choices: []const []const u8, opts: Options) !?usize {
         const ChoiceWrapper = struct {
             choices: []const []const u8,
@@ -105,54 +124,110 @@ pub const Selector = struct {
     }
 
     fn redraw(s: *Selector, ctx: anytype, comptime fmt: FormatFn(@TypeOf(ctx))) !void {
-        var writer = s.ctrl.writer();
+        try s.display.clear(false);
 
-        for (0..s.num_choices) |index| {
-            const choice = s.num_choices - 1 - index;
-            try s.ctrl.clearCurrentLine();
+        var writer = s.display.ctrl.writer();
+
+        // loop over each row that we are drawing
+        for (0..s.opts.max_rows) |row| {
+            try s.moveAndClear(row);
+            // get the corresponding index to display
+            const index = row + s.scroll_offset;
+
             if (index == s.selection) {
                 try writer.writeAll(" > ");
             } else {
                 try writer.writeAll("   ");
             }
-            try fmt(ctx, writer, choice);
 
-            if (s.num_choices - 1 != index) {
-                try writer.writeAll("\n");
+            if (index < s.num_choices) {
+                // draw in the reverse order
+                const draw_index = if (s.opts.reverse)
+                    s.num_choices - (index + 1)
+                else
+                    index;
+                try fmt(ctx, writer, draw_index);
             }
         }
 
-        try s.ctrl.flush();
-    }
-
-    fn incrementSelection(s: *Selector) void {
-        if (s.selection + 1 < s.num_choices) {
-            s.selection += 1;
-        }
-    }
-
-    fn decrementSelection(s: *Selector) void {
-        if (s.selection > 0) {
-            s.selection -= 1;
-        }
+        try s.display.moveToEnd();
+        try s.display.draw();
     }
 
     pub fn update(s: *Selector) !bool {
-        switch (try s.ctrl.tui.nextInput()) {
+        switch (try s.display.ctrl.tui.nextInput()) {
             .char => |c| switch (c) {
-                Key.CtrlC, Key.CtrlD, 'q' => return false,
-                'j' => if (s.opts.vim) s.incrementSelection(),
-                'k' => if (s.opts.vim) s.decrementSelection(),
+                Key.CtrlC, 'q' => return false,
+                Key.CtrlD => s.pageDown(),
+                Key.CtrlU => s.pageUp(),
+                Key.CtrlJ => s.down(true),
+                Key.CtrlK => s.up(true),
+                'j' => s.down(true),
+                'k' => s.up(true),
                 Key.Enter => {
                     s.selected = true;
                     return false;
                 },
                 else => {},
             },
-            .Down => s.incrementSelection(),
-            .Up => s.decrementSelection(),
+            .Down => s.down(false),
+            .Up => s.up(false),
             else => {},
         }
         return true;
+    }
+
+    /// Clear the display
+    pub fn clear(s: *Selector, flush: bool) !void {
+        try s.display.clear(flush);
+    }
+
+    /// Utility method to cleanup the screen
+    pub fn cleanup(s: *Selector) !void {
+        try s.clear(false);
+        try s.display.moveToRow(0);
+        try s.display.draw();
+    }
+
+    /// Move the cursor to a specific row and clear it
+    fn moveAndClear(s: *Selector, row: usize) !void {
+        try s.display.moveToRow(row);
+        try s.display.ctrl.clearCurrentLine();
+    }
+
+    fn up(s: *Selector, vim: bool) void {
+        if (vim and !s.opts.vim) return;
+        s.selectUp();
+    }
+
+    fn down(s: *Selector, vim: bool) void {
+        if (vim and !s.opts.vim) return;
+        s.selectDown();
+    }
+
+    fn selectUp(s: *Selector) void {
+        s.selection -|= 1;
+        if (s.selection <= s.scroll_offset) {
+            s.scroll_offset -|= 1;
+        }
+    }
+
+    fn selectDown(s: *Selector) void {
+        s.selection = @min(s.selection + 1, s.num_choices - 1);
+        if (s.selection >= s.scroll_offset + s.opts.max_rows) {
+            s.scroll_offset += 1;
+        }
+    }
+
+    fn pageUp(s: *Selector) void {
+        for (0..10) |_| {
+            _ = s.selectUp();
+        }
+    }
+
+    fn pageDown(s: *Selector) void {
+        for (0..10) |_| {
+            _ = s.selectDown();
+        }
     }
 };
