@@ -25,6 +25,10 @@ pub const ShowInput = struct {
     }
 };
 
+pub fn FormatFn(comptime T: type) type {
+    return fn (T, anytype, usize) anyerror!void;
+}
+
 pub const Selector = struct {
     pub const Options = struct {
         /// Clear after drawing
@@ -36,13 +40,19 @@ pub const Selector = struct {
     };
 
     ctrl: TermUI.BufferedController,
-    choices: []const []const u8,
+    num_choices: usize,
     selection: usize = 0,
     selected: bool = false,
     opts: Options,
 
-    pub fn interact(tui: *TermUI, choices: []const []const u8, opts: Options) !?usize {
-        var s = Selector{ .ctrl = tui.bufferedController(), .choices = choices, .opts = opts };
+    pub fn interactFmt(
+        tui: *TermUI,
+        ctx: anytype,
+        comptime fmt: FormatFn(@TypeOf(ctx)),
+        num_choices: usize,
+        opts: Options,
+    ) !?usize {
+        var s = Selector{ .ctrl = tui.bufferedController(), .num_choices = num_choices, .opts = opts };
         try s.ctrl.setCursorVisible(false);
 
         var writer = s.ctrl.writer();
@@ -51,16 +61,16 @@ pub const Selector = struct {
         if (s.opts.newlines) {
             try writer.writeAll("\n");
         }
-        try s.redraw();
+        try s.redraw(ctx, fmt);
 
         // interaction loop
         while (try s.update()) {
-            try s.ctrl.cursorUp(s.choices.len - 1);
-            try s.redraw();
+            try s.ctrl.cursorUp(s.num_choices - 1);
+            try s.redraw(ctx, fmt);
         }
 
         if (s.opts.clear) {
-            const num = if (s.opts.newlines) s.choices.len + 1 else s.choices.len;
+            const num = if (s.opts.newlines) s.num_choices + 1 else s.num_choices;
             try s.ctrl.cursorUp(num);
         }
 
@@ -72,26 +82,39 @@ pub const Selector = struct {
         try s.ctrl.flush();
 
         if (s.selected) {
-            return s.choices.len - 1 - s.selection;
+            return s.num_choices - 1 - s.selection;
         } else {
             return null;
         }
     }
 
-    fn redraw(s: *Selector) !void {
+    pub fn interact(tui: *TermUI, choices: []const []const u8, opts: Options) !?usize {
+        const ChoiceWrapper = struct {
+            choices: []const []const u8,
+
+            pub fn write(self: @This(), writer: anytype, index: usize) anyerror!void {
+                try writer.writeAll(self.choices[index]);
+            }
+        };
+
+        const cw: ChoiceWrapper = .{ .choices = choices };
+        return try interactFmt(tui, cw, ChoiceWrapper.write, choices.len, opts);
+    }
+
+    fn redraw(s: *Selector, ctx: anytype, comptime fmt: FormatFn(@TypeOf(ctx))) !void {
         var writer = s.ctrl.writer();
 
-        for (0..s.choices.len) |index| {
-            const choice = s.choices[s.choices.len - 1 - index];
+        for (0..s.num_choices) |index| {
+            const choice = s.num_choices - 1 - index;
             try s.ctrl.clearCurrentLine();
             if (index == s.selection) {
                 try writer.writeAll(" > ");
             } else {
                 try writer.writeAll("   ");
             }
-            try writer.writeAll(choice);
+            try fmt(ctx, writer, choice);
 
-            if (s.choices.len - 1 != index) {
+            if (s.num_choices - 1 != index) {
                 try writer.writeAll("\n");
             }
         }
@@ -100,7 +123,7 @@ pub const Selector = struct {
     }
 
     fn incrementSelection(s: *Selector) void {
-        if (s.selection + 1 < s.choices.len) {
+        if (s.selection + 1 < s.num_choices) {
             s.selection += 1;
         }
     }

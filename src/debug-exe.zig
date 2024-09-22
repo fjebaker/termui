@@ -21,7 +21,7 @@ pub fn main() !void {
     );
 
     try inputExample(&tui);
-    // try selectorExample(&tui);
+    try selectorExample(&tui);
     // try rowWriterExample(&tui);
 }
 
