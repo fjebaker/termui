@@ -52,6 +52,8 @@ pub const Selector = struct {
 
     // used to control overflowing the display
     scroll_offset: usize = 0,
+    // used to buffer the top of the display when reversed
+    row_offset: usize = 0,
     opts: Options,
 
     pub fn interactFmt(
@@ -70,7 +72,10 @@ pub const Selector = struct {
 
         if (s.opts.reverse) {
             s.selection = s.num_choices - 1;
-            s.scroll_offset = (s.num_choices - s.opts.max_rows);
+            s.scroll_offset = s.num_choices -| s.opts.max_rows;
+            if (s.opts.max_rows > s.num_choices) {
+                s.row_offset = s.opts.max_rows - (s.num_choices + 1);
+            }
         }
 
         var writer = s.display.ctrl.writer();
@@ -126,10 +131,10 @@ pub const Selector = struct {
         var writer = s.display.ctrl.writer();
 
         // loop over each row that we are drawing
-        for (0..s.opts.max_rows) |row| {
+        for (s.row_offset..s.opts.max_rows) |row| {
             try s.moveAndClear(row);
             // get the corresponding index to display
-            const index = row + s.scroll_offset;
+            const index = row + s.scroll_offset - s.row_offset;
 
             if (index == s.selection) {
                 try writer.writeAll(" > ");
