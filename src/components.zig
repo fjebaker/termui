@@ -91,10 +91,7 @@ pub const Selector = struct {
         }
 
         // restore the terminal look and feel
-        try writer.writeAll("\n");
-        try s.display.ctrl.clearCurrentLine();
         try s.display.ctrl.setCursorVisible(true);
-
         try s.display.ctrl.flush();
 
         if (s.selected) {
