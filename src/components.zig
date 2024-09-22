@@ -26,7 +26,13 @@ pub const ShowInput = struct {
 };
 
 pub fn FormatFn(comptime T: type) type {
-    return fn (T, anytype, usize) anyerror!void;
+    return fn (T, *Selector, anytype, usize) anyerror!void;
+}
+
+/// Input function should return true to continue the main display loop, or
+/// false to stop.
+pub fn InputFn(comptime T: type) type {
+    return fn (T, *Selector, TermUI.Input) anyerror!bool;
 }
 
 pub const Selector = struct {
@@ -41,6 +47,10 @@ pub const Selector = struct {
         max_rows: usize = 10,
         /// Reverse the display of the selection (if true shows from bottom)
         reverse: bool = true,
+
+        /// Padding rows above and below (useful for e.g. status messages)
+        pad_above: usize = 0,
+        pad_below: usize = 0,
     };
 
     display: TermUI.RowDisplay,
@@ -56,15 +66,18 @@ pub const Selector = struct {
     row_offset: usize = 0,
     opts: Options,
 
-    pub fn interactFmt(
+    fn interactImpl(
         tui: *TermUI,
         ctx: anytype,
         comptime fmt: FormatFn(@TypeOf(ctx)),
+        comptime input: ?InputFn(@TypeOf(ctx)),
         num_choices: usize,
         opts: Options,
     ) !?usize {
         var s = Selector{
-            .display = try tui.rowDisplay(opts.max_rows),
+            .display = try tui.rowDisplay(
+                opts.max_rows + opts.pad_above + opts.pad_below,
+            ),
             .num_choices = num_choices,
             .opts = opts,
         };
@@ -84,10 +97,20 @@ pub const Selector = struct {
         if (s.opts.newlines) {
             try writer.writeAll("\n");
         }
+        try s.display.clear(false);
         try s.redraw(ctx, fmt);
 
         // interaction loop
-        while (try s.update()) {
+        while (try s.pollEvent()) |event| {
+            // have to clear the display here as the user might have drawn to
+            // the screen
+            try s.display.clear(false);
+            // let user handle the input first
+            if (input) |inp| {
+                if (!try inp(ctx, &s, event)) break;
+            }
+            // then we do
+            if (!try s.handleInput(event)) break;
             try s.redraw(ctx, fmt);
         }
 
@@ -100,13 +123,39 @@ pub const Selector = struct {
         try s.display.ctrl.flush();
 
         if (s.selected) {
-            return if (s.opts.reverse)
-                s.num_choices - (s.selection + 1)
-            else
-                s.selection;
+            return s.getSelected();
         } else {
             return null;
         }
+    }
+
+    /// Get the index of the currently selected item
+    pub fn getSelected(s: *const Selector) usize {
+        return if (s.opts.reverse)
+            s.num_choices - (s.selection + 1)
+        else
+            s.selection;
+    }
+
+    pub fn interactFmtInput(
+        tui: *TermUI,
+        ctx: anytype,
+        comptime fmt: FormatFn(@TypeOf(ctx)),
+        comptime input: InputFn(@TypeOf(ctx)),
+        num_choices: usize,
+        opts: Options,
+    ) !?usize {
+        return try interactImpl(tui, ctx, fmt, input, num_choices, opts);
+    }
+
+    pub fn interactFmt(
+        tui: *TermUI,
+        ctx: anytype,
+        comptime fmt: FormatFn(@TypeOf(ctx)),
+        num_choices: usize,
+        opts: Options,
+    ) !?usize {
+        return try interactImpl(tui, ctx, fmt, null, num_choices, opts);
     }
 
     /// Given a list of choices, display them to the user and return the choice
@@ -116,7 +165,12 @@ pub const Selector = struct {
         const ChoiceWrapper = struct {
             choices: []const []const u8,
 
-            pub fn write(self: @This(), writer: anytype, index: usize) anyerror!void {
+            pub fn write(
+                self: @This(),
+                _: *Selector,
+                writer: anytype,
+                index: usize,
+            ) anyerror!void {
                 try writer.writeAll(self.choices[index]);
             }
         };
@@ -126,13 +180,11 @@ pub const Selector = struct {
     }
 
     fn redraw(s: *Selector, ctx: anytype, comptime fmt: FormatFn(@TypeOf(ctx))) !void {
-        try s.display.clear(false);
-
         var writer = s.display.ctrl.writer();
 
         // loop over each row that we are drawing
         for (s.row_offset..s.opts.max_rows) |row| {
-            try s.moveAndClear(row);
+            try s.moveAndClear(row + s.opts.pad_above);
             // get the corresponding index to display
             const index = row + s.scroll_offset - s.row_offset;
 
@@ -148,7 +200,7 @@ pub const Selector = struct {
                     s.num_choices - (index + 1)
                 else
                     index;
-                try fmt(ctx, writer, draw_index);
+                try fmt(ctx, s, writer, draw_index);
             }
         }
 
@@ -156,8 +208,12 @@ pub const Selector = struct {
         try s.display.draw();
     }
 
-    pub fn update(s: *Selector) !bool {
-        switch (try s.display.ctrl.tui.nextInput()) {
+    fn pollEvent(s: *Selector) !?TermUI.Input {
+        return try s.display.ctrl.tui.nextInput();
+    }
+
+    fn handleInput(s: *Selector, input: TermUI.Input) !bool {
+        switch (input) {
             .char => |c| switch (c) {
                 Key.CtrlC, 'q' => return false,
                 Key.CtrlD => s.pageDown(),
