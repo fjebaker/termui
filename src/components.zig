@@ -35,6 +35,10 @@ pub fn InputFn(comptime T: type) type {
     return fn (T, *Selector, TermUI.Input) anyerror!bool;
 }
 
+pub fn PredrawFn(comptime T: type) type {
+    return fn (T, *Selector) anyerror!void;
+}
+
 pub const Selector = struct {
     pub const Options = struct {
         /// Clear after drawing
@@ -69,6 +73,7 @@ pub const Selector = struct {
     fn interactImpl(
         tui: *TermUI,
         ctx: anytype,
+        comptime predraw: ?PredrawFn(@TypeOf(ctx)),
         comptime fmt: FormatFn(@TypeOf(ctx)),
         comptime input: ?InputFn(@TypeOf(ctx)),
         num_choices: usize,
@@ -98,6 +103,8 @@ pub const Selector = struct {
             try writer.writeAll("\n");
         }
         try s.display.clear(false);
+
+        if (predraw) |pd| try pd(ctx, &s);
         try s.redraw(ctx, fmt);
 
         // interaction loop
@@ -105,12 +112,15 @@ pub const Selector = struct {
             // have to clear the display here as the user might have drawn to
             // the screen
             try s.display.clear(false);
+
             // let user handle the input first
             if (input) |inp| {
                 if (!try inp(ctx, &s, event)) break;
             }
-            // then we do
+
             if (!try s.handleInput(event)) break;
+
+            if (predraw) |pd| try pd(ctx, &s);
             try s.redraw(ctx, fmt);
         }
 
@@ -137,15 +147,24 @@ pub const Selector = struct {
             s.selection;
     }
 
-    pub fn interactFmtInput(
+    pub fn interactAlt(
         tui: *TermUI,
         ctx: anytype,
+        comptime predraw: ?PredrawFn(@TypeOf(ctx)),
         comptime fmt: FormatFn(@TypeOf(ctx)),
         comptime input: InputFn(@TypeOf(ctx)),
         num_choices: usize,
         opts: Options,
     ) !?usize {
-        return try interactImpl(tui, ctx, fmt, input, num_choices, opts);
+        return try interactImpl(
+            tui,
+            ctx,
+            predraw,
+            fmt,
+            input,
+            num_choices,
+            opts,
+        );
     }
 
     pub fn interactFmt(
@@ -155,7 +174,15 @@ pub const Selector = struct {
         num_choices: usize,
         opts: Options,
     ) !?usize {
-        return try interactImpl(tui, ctx, fmt, null, num_choices, opts);
+        return try interactImpl(
+            tui,
+            ctx,
+            null,
+            fmt,
+            null,
+            num_choices,
+            opts,
+        );
     }
 
     /// Given a list of choices, display them to the user and return the choice
