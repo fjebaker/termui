@@ -29,10 +29,19 @@ pub fn FormatFn(comptime T: type) type {
     return fn (T, *Selector, anytype, usize) anyerror!void;
 }
 
+pub const InputHandleOutcome = enum {
+    /// Let the component handle input
+    handle,
+    /// Do not let the component handle input
+    skip,
+    /// Stop the interaction loop
+    exit,
+};
+
 /// Input function should return true to continue the main display loop, or
 /// false to stop.
 pub fn InputFn(comptime T: type) type {
-    return fn (T, *Selector, TermUI.Input) anyerror!bool;
+    return fn (T, *Selector, TermUI.Input) anyerror!InputHandleOutcome;
 }
 
 pub fn PredrawFn(comptime T: type) type {
@@ -115,10 +124,16 @@ pub const Selector = struct {
 
             // let user handle the input first
             if (input) |inp| {
-                if (!try inp(ctx, &s, event)) break;
+                switch (try inp(ctx, &s, event)) {
+                    .exit => break,
+                    .handle => {
+                        if (!try s.handleInput(event)) break;
+                    },
+                    .skip => {},
+                }
+            } else {
+                if (!try s.handleInput(event)) break;
             }
-
-            if (!try s.handleInput(event)) break;
 
             if (predraw) |pd| try pd(ctx, &s);
             try s.redraw(ctx, fmt);
