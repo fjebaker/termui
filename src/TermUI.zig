@@ -142,7 +142,7 @@ pub const TtyFd = struct {
 
     pub fn getSize(tf: *const TtyFd) !std.posix.winsize {
         var size: std.posix.winsize = undefined;
-        const ret_code = std.os.linux.ioctl(
+        const ret_code = std.posix.system.ioctl(
             tf.file.handle,
             std.posix.T.IOCGWINSZ,
             @intFromPtr(&size),
