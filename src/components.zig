@@ -64,14 +64,22 @@ pub const Selector = struct {
         /// Padding rows above and below (useful for e.g. status messages)
         pad_above: usize = 0,
         pad_below: usize = 0,
+
+        /// Show the cursor (user will have to place it).
+        show_cursor: bool = false,
     };
 
     display: TermUI.RowDisplay,
     num_choices: usize,
+
     /// Index currently selected
     selection: usize = 0,
+
     /// User has made a selection
     selected: bool = false,
+
+    /// Which column to park the cursor in
+    cursor_column: usize = 0,
 
     // used to control overflowing the display
     scroll_offset: usize = 0,
@@ -95,7 +103,7 @@ pub const Selector = struct {
             .num_choices = num_choices,
             .opts = opts,
         };
-        try s.display.ctrl.setCursorVisible(false);
+        try s.display.ctrl.setCursorVisible(opts.show_cursor);
 
         if (s.opts.reverse) {
             s.selection = s.num_choices - 1;
@@ -247,6 +255,7 @@ pub const Selector = struct {
         }
 
         try s.display.moveToEnd();
+        try s.display.ctrl.cursorToColumn(s.cursor_column);
         try s.display.draw();
     }
 
@@ -277,6 +286,14 @@ pub const Selector = struct {
             else => {},
         }
         return true;
+    }
+
+    /// Cap the selection to a given index.
+    pub fn capSelection(s: *Selector, cap: usize) void {
+        s.selection = @min(
+            @max(s.selection, @max(s.num_choices - cap + 1, 1) - 1),
+            s.num_choices - 1,
+        );
     }
 
     /// Clear the display
