@@ -13,7 +13,7 @@ pub const ShowInput = struct {
         while (true) {
             const inp = try tui.nextInputByte();
             switch (inp) {
-                Key.CtrlC, Key.CtrlD, 'q' => break,
+                Key.ctrl('c'), Key.ctrl('d'), 'q' => break,
                 else => {
                     try ctrl.writer().print(" {d}", .{inp});
                 },
@@ -257,11 +257,13 @@ pub const Selector = struct {
     fn handleInput(s: *Selector, input: TermUI.Input) !bool {
         switch (input) {
             .char => |c| switch (c) {
-                Key.CtrlC, 'q' => return false,
-                Key.CtrlD => s.pageDown(),
-                Key.CtrlU => s.pageUp(),
-                Key.CtrlJ => s.down(true),
-                Key.CtrlK => s.up(true),
+                Key.ctrl('c'),
+                'q',
+                => return false,
+                Key.ctrl('d') => s.pageDown(),
+                Key.ctrl('u') => s.pageUp(),
+                Key.ctrl('j') => s.down(true),
+                Key.ctrl('k') => s.up(true),
                 'j' => s.down(true),
                 'k' => s.up(true),
                 Key.Enter => {

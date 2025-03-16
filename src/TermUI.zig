@@ -10,18 +10,14 @@ pub const Error = error{ SetAttrError, GetAttrError };
 
 pub const Key = struct {
     pub const Tab = 9;
-    pub const CtrlC = 3;
-    pub const CtrlD = 4;
-    pub const CtrlH = 8;
-    pub const CtrlJ = 10;
-    pub const CtrlK = 11;
-    pub const CtrlL = 12;
-    pub const CtrlN = 14;
     pub const Enter = 13;
-    pub const CtrlU = 21;
     pub const Escape = 27;
     pub const Space = 32;
     pub const Backspace = 127;
+
+    pub fn ctrl(c: u8) u8 {
+        return c - @as(u8, 'a') + 1;
+    }
 };
 
 const ESCAPE = 27; // escape code
