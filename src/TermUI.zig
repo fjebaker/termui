@@ -106,11 +106,13 @@ pub const TtyFd = struct {
 in: TtyFd,
 out: TtyFd,
 buffer: [1]u8 = .{0},
+write_buffer: [1024]u8 = .{0} ** 1024,
 
 pub const Controller = struct {
     const Self = @This();
     inline fn writeEscaped(s: *Self, mod: usize, key: u8) !void {
         try s.writer().print("\x1b[{d}{c}", .{ mod, key });
+        try s.flush();
     }
     /// Move the cursor up by `num` rows
     pub fn cursorUp(s: *Self, num: usize) !void {
@@ -150,38 +152,39 @@ pub const Controller = struct {
         try s.writeEscaped(2, LINE_CLEAR);
     }
 
-    tui: TermUI,
-    w: std.Io.Writer,
+    tui: *TermUI,
+    w: std.fs.File.Writer,
 
     pub fn writer(s: *Self) *std.Io.Writer {
-        return &s.w;
+        return &s.w.interface;
     }
 
     pub fn flush(s: *Self) !void {
-        return s.w.flush();
+        const w = s.writer();
+        return w.flush();
     }
 };
 
 /// Get an output controller for manipulating the output
-pub fn controller(tui: TermUI) Controller {
-    return .{ .tui = tui, .w = tui.writer().interface };
+pub fn controller(tui: *TermUI) Controller {
+    return .{ .tui = tui, .w = tui.writer() };
 }
 
 /// Get a buffered output controller for manipulating the output
 /// TODO: remove me
-pub fn bufferedController(tui: TermUI) Controller {
-    return .{ .tui = tui, .w = tui.writer().interface };
+pub fn bufferedController(tui: *TermUI) Controller {
+    return .{ .tui = tui, .w = tui.bufferedWriter() };
 }
 
 /// Get a writer to terminal output.
-pub fn writer(tui: TermUI) std.fs.File.Writer {
+pub fn writer(tui: *TermUI) std.fs.File.Writer {
     return tui.out.file.writer(&.{});
 }
 
 /// Get a buffered writer that that must be flushed before content is written
 /// to the screen. Useful for frames.
-pub fn bufferedWriter(tui: TermUI) BufferedWriter {
-    return std.Io.bufferedWriter(tui.writer());
+pub fn bufferedWriter(tui: *TermUI) std.fs.File.Writer {
+    return tui.out.file.writer(&tui.write_buffer);
 }
 
 pub fn reader(tui: *TermUI) std.fs.File.Reader {
