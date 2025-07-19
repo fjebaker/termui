@@ -329,7 +329,7 @@ pub const RowDisplay = struct {
         try w.print(fmt, args);
     }
 
-    pub fn rowWriter(d: *RowDisplay, row: usize) !BufferedWriter.Writer {
+    pub fn rowWriter(d: *RowDisplay, row: usize) !*std.io.Writer {
         try d.moveToRow(row);
         return d.ctrl.writer();
     }
