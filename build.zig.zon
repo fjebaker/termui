@@ -2,5 +2,5 @@
     .name = .termui,
     .fingerprint = 0x97bc7262e1a734db,
     .paths = .{""},
-    .version = "0.2.0",
+    .version = "0.2.1",
 }
