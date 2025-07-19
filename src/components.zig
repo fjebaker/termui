@@ -1,27 +1,29 @@
 const std = @import("std");
-const TermUI = @import("TermUI.zig");
-const Key = TermUI.Key;
+
+pub const TermUI = @import("TermUI.zig");
+pub const Key = TermUI.Key;
+pub const ctrl = Key.ctrl;
 
 pub const ShowInput = struct {
     pub fn interact(tui: *TermUI) !void {
-        const ctrl = tui.controller();
+        const controller = tui.controller();
 
-        try ctrl.writer().writeAll("Input:");
+        try controller.writer().writeAll("Input:");
 
-        try ctrl.setCursorVisible(false);
+        try controller.setCursorVisible(false);
 
         while (true) {
             const inp = try tui.nextInputByte();
             switch (inp) {
-                Key.ctrl('c'), Key.ctrl('d'), 'q' => break,
+                Key.controller('c'), Key.controller('d'), 'q' => break,
                 else => {
-                    try ctrl.writer().print(" {d}", .{inp});
+                    try controller.writer().print(" {d}", .{inp});
                 },
             }
         }
 
-        try ctrl.writer().writeAll("\n");
-        try ctrl.setCursorVisible(true);
+        try controller.writer().writeAll("\n");
+        try controller.setCursorVisible(true);
     }
 };
 

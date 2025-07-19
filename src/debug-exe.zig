@@ -6,8 +6,8 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     var tui = try termui.TermUI.init(
-        std.io.getStdIn(),
-        std.io.getStdOut(),
+        std.fs.File.stdin(),
+        std.fs.File.stdout(),
     );
     defer tui.deinit();
 
@@ -15,7 +15,7 @@ pub fn main() !void {
     const size = try tui.getSize();
 
     var writer = tui.writer();
-    try writer.print(
+    try writer.interface.print(
         "Terminal size: {d} x {d}\n",
         .{ size.col, size.row },
     );
@@ -76,5 +76,5 @@ fn selectorExample(tui: *termui.TermUI) !void {
         &options,
         .{ .clear = false, .max_rows = 5, .reverse = false },
     ) orelse return;
-    try writer.print("\nYou selected: {s}\n", .{options[choice]});
+    try writer.interface.print("\nYou selected: {s}\n", .{options[choice]});
 }

@@ -34,7 +34,7 @@ const LINE_CLEAR = 'K';
 
 pub const TerminalError = error{IOCTLError};
 
-pub const Writer = std.fs.File.Writer;
+pub const Writer = std.io.Writer;
 pub const BufferedWriter = std.io.BufferedWriter(4096, Writer);
 pub const Reader = std.fs.File.Reader;
 
@@ -57,51 +57,6 @@ pub const Input = union(enum) {
         };
     }
 };
-
-fn ControllerMixin(comptime Self: type) type {
-    return struct {
-        inline fn writeEscaped(s: Self, mod: usize, key: u8) !void {
-            try s.writer().print("\x1b[{d}{c}", .{ mod, key });
-        }
-        /// Move the cursor up by `num` rows
-        pub fn cursorUp(s: Self, num: usize) !void {
-            try s.writeEscaped(num, ARROW_UP);
-        }
-        /// Move the cursor down by `num` rows
-        pub fn cursorDown(s: Self, num: usize) !void {
-            try s.writeEscaped(num, ARROW_DOWN);
-        }
-        /// Move the cursor right by `num` cols
-        pub fn cursorRight(s: Self, num: usize) !void {
-            try s.writeEscaped(num, ARROW_RIGHT);
-        }
-        /// Move the cursor left by `num` cols
-        pub fn cursorLeft(s: Self, num: usize) !void {
-            try s.writeEscaped(num, ARROW_LEFT);
-        }
-        /// Move the cursor to a specific column
-        pub fn cursorToColumn(s: Self, col: usize) !void {
-            try s.writeEscaped(col, CURSOR_COLUMN);
-        }
-        /// Enable or disable drawing the cursor
-        pub fn setCursorVisible(s: Self, visible: bool) !void {
-            if (visible) {
-                try s.writer().writeAll(CURSOR_VISIBLE);
-            } else {
-                try s.writer().writeAll(CURSOR_HIDE);
-            }
-        }
-        /// Formatted printing via the TUI's out TtyFd.
-        pub fn print(s: Self, comptime fmt: []const u8, args: anytype) !void {
-            try s.writer().print(fmt, args);
-        }
-        /// Clear the current line
-        pub fn clearCurrentLine(s: Self) !void {
-            try s.cursorToColumn(1);
-            try s.writeEscaped(2, LINE_CLEAR);
-        }
-    };
-}
 
 pub const TtyFd = struct {
     file: std.fs.File,
@@ -150,77 +105,108 @@ pub const TtyFd = struct {
 
 in: TtyFd,
 out: TtyFd,
-
-pub const BufferedController = struct {
-    const Self = @This();
-    pub usingnamespace ControllerMixin(*Self);
-
-    tui: TermUI,
-    buffer: BufferedWriter,
-
-    pub fn writer(s: *Self) BufferedWriter.Writer {
-        return s.buffer.writer();
-    }
-
-    pub fn flush(s: *Self) !void {
-        try s.buffer.flush();
-    }
-};
+buffer: [1]u8 = .{0},
 
 pub const Controller = struct {
     const Self = @This();
-    pub usingnamespace ControllerMixin(Self);
+    inline fn writeEscaped(s: *Self, mod: usize, key: u8) !void {
+        try s.writer().print("\x1b[{d}{c}", .{ mod, key });
+    }
+    /// Move the cursor up by `num` rows
+    pub fn cursorUp(s: *Self, num: usize) !void {
+        try s.writeEscaped(num, ARROW_UP);
+    }
+    /// Move the cursor down by `num` rows
+    pub fn cursorDown(s: *Self, num: usize) !void {
+        try s.writeEscaped(num, ARROW_DOWN);
+    }
+    /// Move the cursor right by `num` cols
+    pub fn cursorRight(s: *Self, num: usize) !void {
+        try s.writeEscaped(num, ARROW_RIGHT);
+    }
+    /// Move the cursor left by `num` cols
+    pub fn cursorLeft(s: *Self, num: usize) !void {
+        try s.writeEscaped(num, ARROW_LEFT);
+    }
+    /// Move the cursor to a specific column
+    pub fn cursorToColumn(s: *Self, col: usize) !void {
+        try s.writeEscaped(col, CURSOR_COLUMN);
+    }
+    /// Enable or disable drawing the cursor
+    pub fn setCursorVisible(s: *Self, visible: bool) !void {
+        if (visible) {
+            try s.writer().writeAll(CURSOR_VISIBLE);
+        } else {
+            try s.writer().writeAll(CURSOR_HIDE);
+        }
+    }
+    /// Formatted printing via the TUI's out TtyFd.
+    pub fn print(s: *Self, comptime fmt: []const u8, args: anytype) !void {
+        try s.writer().print(fmt, args);
+    }
+    /// Clear the current line
+    pub fn clearCurrentLine(s: *Self) !void {
+        try s.cursorToColumn(1);
+        try s.writeEscaped(2, LINE_CLEAR);
+    }
 
     tui: TermUI,
-    w: Writer,
+    w: std.Io.Writer,
 
-    pub fn writer(s: Self) Writer {
-        return s.w;
+    pub fn writer(s: *Self) *std.Io.Writer {
+        return &s.w;
+    }
+
+    pub fn flush(s: *Self) !void {
+        return s.w.flush();
     }
 };
 
 /// Get an output controller for manipulating the output
 pub fn controller(tui: TermUI) Controller {
-    return .{ .tui = tui, .w = tui.writer() };
+    return .{ .tui = tui, .w = tui.writer().interface };
 }
 
 /// Get a buffered output controller for manipulating the output
-pub fn bufferedController(tui: TermUI) BufferedController {
-    return .{ .tui = tui, .buffer = tui.bufferedWriter() };
+/// TODO: remove me
+pub fn bufferedController(tui: TermUI) Controller {
+    return .{ .tui = tui, .w = tui.writer().interface };
 }
 
 /// Get a writer to terminal output.
-pub fn writer(tui: TermUI) Writer {
-    return tui.out.file.writer();
+pub fn writer(tui: TermUI) std.fs.File.Writer {
+    return tui.out.file.writer(&.{});
 }
 
 /// Get a buffered writer that that must be flushed before content is written
 /// to the screen. Useful for frames.
 pub fn bufferedWriter(tui: TermUI) BufferedWriter {
-    return std.io.bufferedWriter(tui.writer());
+    return std.Io.bufferedWriter(tui.writer());
 }
 
-pub fn reader(tui: TermUI) std.fs.File.Reader {
-    return tui.in.file.reader();
+pub fn reader(tui: *TermUI) std.fs.File.Reader {
+    return tui.in.file.reader(&tui.buffer);
 }
 
 /// Blocks until next input is read. Returns the raw byte read.
-pub fn nextInputByte(tui: TermUI) !u8 {
+pub fn nextInputByte(tui: *TermUI) !u8 {
     const rdr = tui.reader();
-    return try rdr.readByte();
+    return try rdr.interface.takeByte();
 }
 
 /// Blocks until next input is read. Translates escaped keycodes.
-pub fn nextInput(tui: TermUI) !Input {
-    const rdr = tui.reader();
-    const c = try rdr.readByte();
+pub fn nextInput(tui: *TermUI) !Input {
+    var rdr = tui.reader();
+    const c = try rdr.interface.takeByte();
     switch (c) {
         ESCAPE => {
-            const num = try rdr.readByte();
-            const key = try rdr.readByte();
+            const num = try rdr.interface.takeByte();
+            const key = try rdr.interface.takeByte();
             return Input.translateEscaped(num, key);
         },
-        else => return .{ .char = c },
+        else => {
+            return .{ .char = c };
+        },
     }
 }
 
@@ -252,7 +238,7 @@ pub fn deinit(tui: *TermUI) void {
 /// Abstraction for displaying content in rows.
 /// Row zero corresponds to the highest row on terminal screen.
 pub const RowDisplay = struct {
-    ctrl: BufferedController,
+    ctrl: Controller,
     max_rows: usize,
     current_row: usize = 0,
 

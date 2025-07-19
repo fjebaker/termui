@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     const termui_module = b.addModule(
         "termui",
         .{
-            .root_source_file = b.path("src/main.zig"),
+            .root_source_file = b.path("src/components.zig"),
             .target = target,
             .optimize = optimize,
         },
