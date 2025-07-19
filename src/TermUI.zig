@@ -106,13 +106,12 @@ pub const TtyFd = struct {
 in: TtyFd,
 out: TtyFd,
 buffer: [1]u8 = .{0},
-write_buffer: [1024]u8 = .{0} ** 1024,
+write_buffer: [4096]u8 = .{0} ** 4096,
 
 pub const Controller = struct {
     const Self = @This();
     inline fn writeEscaped(s: *Self, mod: usize, key: u8) !void {
         try s.writer().print("\x1b[{d}{c}", .{ mod, key });
-        try s.flush();
     }
     /// Move the cursor up by `num` rows
     pub fn cursorUp(s: *Self, num: usize) !void {

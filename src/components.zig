@@ -124,6 +124,7 @@ pub const Selector = struct {
         try s.display.clear(false);
 
         if (predraw) |pd| try pd(ctx, &s);
+
         try s.redraw(ctx, fmt);
 
         // interaction loop
