@@ -1,3 +1,1 @@
-# Termui
-
-UI elements for the terminal user.
+Moved to [codeberg](https://codeberg.org/fjebaker/termui).
